@@ -37,6 +37,10 @@ class TaskManager {
     }
 }
 
+/**
+ * Asset/loading bookkeeping only. The upstream `restart()` navigated the page to
+ * an external video; a wallpaper must never leave the host app, so it is gone.
+ */
 class GameManager extends EventEmitter {
     public taskManger: TaskManager = new TaskManager();
     public restartCount: number = 0;
@@ -51,10 +55,6 @@ class GameManager extends EventEmitter {
         return this.taskManger.progress;
     }
 
-    public restart() {
-        // location.reload();
-        window.location.href = 'https://www.bilibili.com/video/BV1E8411v7xy'
-    }
     public task(handle: Function | Promise<any>, props = {}) {
         return this.taskManger.task(handle, props);
     }

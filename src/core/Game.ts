@@ -6,11 +6,9 @@ import {
     Viewer,
     AssetManager,
     DeviceInput,
-    AudioComponent,
     Fog,
     FXAAPlugin,
     BloomPlugin,
-    TWEEN,
     $r,
 } from "../libs/xviewer";
 
@@ -20,7 +18,6 @@ import { StateHandler } from "./states/StateHandler";
 import { StateMachine } from "./states/StateMachine";
 import { AmbientLightComponent } from "./components/AmbientLightComponent";
 import { Road } from "./components/Road";
-import { BloomTransitionEffectPlugin } from "./components/BloomTransition";
 import { ForwardCamera } from "./components/ForwardCamera";
 import { DirectionalLightComponent } from "./components/DirectionalLightComponent";
 import { PolarLight } from "./components/PolarLight";
@@ -29,8 +26,6 @@ import { HashFog } from "./components/HashFog";
 import { Column } from "./components/Column";
 import { BigCloud } from "./components/BigCloud";
 import { gradientBackgroundPlugin } from "./components/gradientBackground";
-
-const { TweenManager } = TWEEN;
 
 let onResizeOrigin = DeviceInput.prototype["_onResize"];
 function resizeWindow() {
@@ -98,16 +93,17 @@ class StatePreload extends StateHandler<Game> {
     }
 }
 
+/**
+ * Loop-only scene: builds the road, the clouds, the lights and the forward
+ * camera, then lets them run forever. The original game stopped the camera at a
+ * door, played a bloom transition and redirected to a video; that whole path is
+ * gone, so nothing interrupts the loop.
+ */
 class StateGame extends StateHandler<Game> {
     public name: string = "StateGame";
 
-    private _road!: Road;
-    private _BloomTransition!: BloomTransitionEffectPlugin;
-    private _forwardCamera!: ForwardCamera;
-
     public onEnter(...args: any[]): void | Promise<any> {
         this._initScene();
-        this._initAudios();
     }
 
     private _initScene() {
@@ -122,73 +118,13 @@ class StateGame extends StateHandler<Game> {
         viewer.addNode(Column);
         viewer.addNode(BigCloud);
 
-        this._forwardCamera = viewer.addNode(ForwardCamera)
-        this._road = viewer.addNode(Road);
+        viewer.addNode(ForwardCamera)
+        viewer.addNode(Road);
 
         viewer.addPlugin(gradientBackgroundPlugin);
         viewer.addPlugin(FXAAPlugin)
         viewer.addPlugin(BloomPlugin, { mipmapBlur: true, luminanceThreshold: 2, intensity: 0.6 });
-        this._BloomTransition = viewer.addPlugin(BloomTransitionEffectPlugin);
 
         viewer.addPlugin(ToneMappingPlugin, { mode: ToneMappingMode.ACES_FILMIC });
-
-        // 调试窗口
-        // viewer.addPlugin(InspectorPostprocessingPlugin);
-        // viewer.addPlugin(InspectorMaterialPlugin);
-        // viewer.addPlugin(InspectorComponentPlugin);
-        // viewer.addPlugin(InspectorViewerPlugin)
-        // viewer.addPlugin(StatsPlugin);
-
-        gameManager.on("start", this._startGame, this, true);
-    }
-
-    private _initAudios() {
-        const viewer = this.target.viewer;
-        const audioBGM = viewer.addNode(AudioComponent);
-        const audioEffect = viewer.addNode(AudioComponent);
-
-        gameManager.on("canvas-click", () => {
-            audioBGM.play({ url: "/Genshin/BGM.mp3", loop: true });
-        })
-        gameManager.on("button-start-click", () => {
-            audioBGM.play({ url: "/Genshin/BGM.mp3", loop: true });
-            audioEffect.play({ url: "/Genshin/Genshin Impact [Duang].mp3", force: true });
-        })
-        gameManager.on("openDoor", () => {
-            setTimeout(() => audioEffect.play({ url: "/Genshin/Genshin Impact [DoorThrough].mp3", force: true }), 150);
-        })
-        gameManager.on("doorCreateBegin", () => {
-            setTimeout(() => audioEffect.play({ url: "/Genshin/Genshin Impact [DoorComeout].mp3", force: true }), 150);
-        })
-
-    }
-
-    private _startGame(e: MouseEvent) {
-        // gameManager.emit("start");
-        this._road.emit("start");
-        gameManager.on("showDoor", (v) => {
-            this._forwardCamera.emit("showDoor", v);
-            gameManager.on("doorCreate", () => this.target.viewer.on(DeviceInput.POINTER_DOWN, this._jump, this, true), this, true);
-        }, this, true);
-    }
-
-    private _jump() {
-        gameManager.emit("openDoor");
-        this._forwardCamera.emit("openDoor");
-        this._BloomTransition.playTransition();
-        TweenManager.Timeline(this)
-            .delay(0.1)
-            .call(() => { this._road.openDoor() })
-            .delay(2)
-            .call(() => {
-                gameManager.restart();
-                console.log("restart")
-            })
-            .start();
     }
 }
-
-AssetManager.Load({ url: "/Genshin/BGM.mp3" });
-AssetManager.Load({ url: "/Genshin/Genshin Impact [Duang].mp3" });
-AssetManager.Load({ url: "/Genshin/Genshin Impact [DoorThrough].mp3" });
-AssetManager.Load({ url: "/Genshin/Genshin Impact [DoorComeout].mp3" });
